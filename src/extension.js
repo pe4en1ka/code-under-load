@@ -3,6 +3,7 @@ const vscode = require('vscode');
 const { buildConfig } = require('./configuration');
 const { runBenchmark } = require('./runner');
 const { renderReport } = require('./report');
+const { toCsv } = require('./export');
 let running = false;
 let activeController;
 
@@ -61,6 +62,21 @@ async function run(context) {
       scriptUri:panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'report.js')).toString(),
       cspSource:panel.webview.cspSource
     });
+    const exportSubscription = panel.webview.onDidReceiveMessage(async message => {
+      if (message?.type !== 'export' || !['json', 'csv'].includes(message.format)) return;
+      try {
+        const format = message.format;
+        const target = await vscode.window.showSaveDialog({
+          defaultUri:vscode.Uri.joinPath(uri, '..', `benchmark-results.${format}`),
+          filters:format === 'json' ? {JSON:['json']} : {CSV:['csv']}, saveLabel:'Сохранить результаты'
+        });
+        if (!target) return;
+        const content = format === 'json' ? JSON.stringify(result, null, 2) + '\n' : toCsv(result);
+        await vscode.workspace.fs.writeFile(target, Buffer.from(content, 'utf8'));
+        vscode.window.showInformationMessage('Результаты сохранены.');
+      } catch (error) { vscode.window.showErrorMessage(`Не удалось сохранить результаты: ${error.message}`); }
+    });
+    panel.onDidDispose(() => exportSubscription.dispose());
     context.subscriptions.push(panel);
   } catch (error) {
     vscode.window.showErrorMessage(`Код под нагрузкой: ${error.message}`);
