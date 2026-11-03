@@ -6,12 +6,71 @@
   "publisher": "pe4en1ka",
   "author": "Мамедов Тимур Назимович, М3108",
   "license": "MIT",
-  "engines": {"vscode": "^1.85.0"},
-  "categories": ["Other"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
   "main": "./src/extension.js",
-  "capabilities": {"untrustedWorkspaces": {"supported": false}},
-  "scripts": {"test": "node --test test/*.test.js", "check": "node scripts/check.cjs", "package": "vsce package"},
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node scripts/check.cjs",
+    "package": "vsce package"
+  },
   "contributes": {
-    "commands": [{"command": "codeUnderLoad.run", "title": "Исследовать производительность", "category": "Код под нагрузкой"}]
+    "commands": [
+      {
+        "command": "codeUnderLoad.run",
+        "title": "Исследовать производительность",
+        "category": "Код под нагрузкой"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codeUnderLoad.run",
+          "when": "resourceExtname =~ /\\.(js|cjs|mjs)$/",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Код под нагрузкой",
+      "properties": {
+        "codeUnderLoad.nodePath": {
+          "type": "string",
+          "default": "node",
+          "scope": "machine",
+          "description": "Путь к исполняемому файлу Node.js (18+)."
+        },
+        "codeUnderLoad.repetitions": {
+          "type": "integer",
+          "default": 7,
+          "minimum": 3,
+          "maximum": 50,
+          "description": "Количество измерений для каждого размера."
+        },
+        "codeUnderLoad.warmup": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Число прогревочных вызовов для каждого размера."
+        },
+        "codeUnderLoad.timeoutSeconds": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 120,
+          "description": "Общий лимит времени эксперимента в секундах."
+        }
+      }
+    }
   }
 }
