@@ -19,7 +19,7 @@
     }
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node scripts/test.cjs",
     "check": "node scripts/check.cjs",
     "package": "vsce package"
   },
