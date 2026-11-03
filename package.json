@@ -1,0 +1,17 @@
+{
+  "name": "code-under-load",
+  "displayName": "Код под нагрузкой",
+  "description": "Измерение и сравнение времени выполнения JavaScript-функций на данных разного объёма.",
+  "version": "0.1.0",
+  "publisher": "pe4en1ka",
+  "author": "Мамедов Тимур Назимович, М3108",
+  "license": "MIT",
+  "engines": {"vscode": "^1.85.0"},
+  "categories": ["Other"],
+  "main": "./src/extension.js",
+  "capabilities": {"untrustedWorkspaces": {"supported": false}},
+  "scripts": {"test": "node --test test/*.test.js", "check": "node scripts/check.cjs", "package": "vsce package"},
+  "contributes": {
+    "commands": [{"command": "codeUnderLoad.run", "title": "Исследовать производительность", "category": "Код под нагрузкой"}]
+  }
+}
