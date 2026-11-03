@@ -2,6 +2,7 @@
 const vscode = require('vscode');
 const { buildConfig } = require('./configuration');
 const { runBenchmark } = require('./runner');
+const { renderReport } = require('./report');
 let running = false;
 let activeController;
 
@@ -52,10 +53,15 @@ async function run(context) {
           onPoint:point => progress.report({increment:100 / total, message:`${point.name} · n = ${point.size}`})});
       } finally { cancellation.dispose(); activeController = undefined; }
     });
-    const output = vscode.window.createOutputChannel('Код под нагрузкой');
-    context.subscriptions.push(output);
-    output.appendLine(JSON.stringify(result, null, 2));
-    output.show();
+    const panel = vscode.window.createWebviewPanel('codeUnderLoad.results', 'Код под нагрузкой · Результаты', vscode.ViewColumn.Beside, {
+      enableScripts:true, localResourceRoots:[vscode.Uri.joinPath(context.extensionUri, 'media')]
+    });
+    panel.webview.html = renderReport(result, {
+      cssUri:panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'report.css')).toString(),
+      scriptUri:panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'report.js')).toString(),
+      cspSource:panel.webview.cspSource
+    });
+    context.subscriptions.push(panel);
   } catch (error) {
     vscode.window.showErrorMessage(`Код под нагрузкой: ${error.message}`);
   } finally { running = false; }
