@@ -72,5 +72,16 @@
         }
       }
     }
-  }
+  },
+  "devDependencies": {
+    "@vscode/vsce": "3.6.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pe4en1ka/code-under-load.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pe4en1ka/code-under-load/issues"
+  },
+  "homepage": "https://github.com/pe4en1ka/code-under-load#readme"
 }
