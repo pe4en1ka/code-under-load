@@ -1,9 +1,10 @@
 'use strict';
 const { spawn } = require('node:child_process');
 const path = require('node:path');
-const { validateConfig } = require('./benchmark');
+const { validateConfig } = require('./validation');
+const { detectLanguage } = require('./languages');
 
-function runBenchmark(config, { nodePath = 'node', signal, onPoint = () => {} } = {}) {
+function runJavaScript(config, { nodePath = 'node', signal, onPoint = () => {} } = {}) {
   validateConfig(config);
   if (signal?.aborted) return Promise.reject(new Error('Измерение отменено.'));
   return new Promise((resolve, reject) => {
@@ -40,5 +41,12 @@ function runBenchmark(config, { nodePath = 'node', signal, onPoint = () => {} } 
       else child.send(config, error => { if (error) finish(error); });
     });
   });
+}
+function runBenchmark(config, options = {}) {
+  validateConfig(config);
+  const language = detectLanguage(config.modulePath);
+  if (language === 'javascript') return runJavaScript(config, options);
+  if (language === 'python') return require('./external-runner').runExternalBenchmark(config, options);
+  return Promise.reject(new Error('Поддержка C++ ещё не подключена.'));
 }
 module.exports = { runBenchmark };
