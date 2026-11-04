@@ -1,6 +1,7 @@
 'use strict';
 const vscode = require('vscode');
-const { buildConfig } = require('./configuration');
+const { buildConfig, buildProgramConfig } = require('./configuration');
+const { sortInputFiles, suggestSizes, inputOrderLabel } = require('./program-inputs');
 const { runBenchmark } = require('./runner');
 const { renderReport } = require('./report');
 const { toCsv } = require('./export');
@@ -10,7 +11,7 @@ let activeController;
 
 async function run(context) {
   if (!vscode.workspace.isTrusted) {
-    vscode.window.showWarningMessage('Для запуска функций откройте доверенную рабочую папку.');
+    vscode.window.showWarningMessage('Для запуска кода откройте доверенную рабочую папку.');
     return;
   }
   if (running) {
@@ -29,23 +30,48 @@ async function run(context) {
     if (document?.isDirty && !await document.save()) throw new Error('Сначала сохраните модуль.');
     const language = detectLanguage(uri.fsPath);
     const languageLabel = LANGUAGE_LABELS[language];
-    const previous = context.workspaceState.get(`lastExperiment.${language}`, language === 'javascript' ? context.workspaceState.get('lastExperiment', {}) : {});
-    const editor = vscode.window.activeTextEditor;
-    const selection = editor && editor.document.uri.toString() === uri.toString() ? editor.document.getText(editor.selection).trim() : '';
-    const names = await vscode.window.showInputBox({title:`1/3 · ${languageLabel} · Функции для сравнения`, prompt:language === 'javascript' ? 'Имена экспортов через запятую (1–4). Для default-экспорта: default.' : language === 'cpp' ? 'Имена функций через запятую (1–4). Можно использовать файл с main; сам main не запускается.' : 'Имена функций модуля через запятую (1–4).', value:/^[\w$:]+$/.test(selection) ? selection : previous.names || '', placeHolder:language === 'javascript' ? 'uniqueSlow, uniqueFast' : 'unique_slow, unique_fast'});
-    if (names === undefined) return;
-    const sizes = await vscode.window.showInputBox({title:'2/3 · Размеры входных данных', prompt:'Возрастающие размеры через запятую, максимум 1 000 000.', value:previous.sizes || '100, 1000, 5000, 10000'});
-    if (sizes === undefined) return;
-    const input = await vscode.window.showQuickPick([
-      {label:'Случайный массив', description:'Воспроизводимые целые числа, seed = 42', kind:'random'},
-      {label:'Возрастающий массив', description:'0, 1, …, n−1', kind:'sorted'},
-      {label:'Убывающий массив', description:'n, n−1, …, 1', kind:'reversed'},
-      {label:'Свой генератор', description:language === 'javascript' ? 'generateInput(size, seed) → массив аргументов' : language === 'python' ? 'generate_input(size, seed) → список или кортеж аргументов' : 'generate_input(size, seed) → std::tuple аргументов', kind:'custom'}
-    ], {title:'3/3 · Входные данные', placeHolder:`Будет выполнен код ${languageLabel}${language === 'cpp' ? ' · компиляция C++17 с -O2' : ''}`});
-    if (!input) return;
     const settings = vscode.workspace.getConfiguration('codeUnderLoad');
-    const config = buildConfig(uri.fsPath, names, sizes, input.kind, settings);
-    await context.workspaceState.update(`lastExperiment.${language}`, {names, sizes});
+    let config;
+    let mode = 'functions';
+    if (language === 'cpp') {
+      const choice = await vscode.window.showQuickPick([
+        {label:'Программа целиком через main', description:'Обычный .cpp + входные файлы для cin. Переделывать код не нужно.', mode:'program'},
+        {label:'Отдельные функции', description:'Измерение функции с массивом или собственным генератором аргументов.', mode:'functions'}
+      ], {title:'C++ · Что измеряем?', placeHolder:'Выберите способ запуска'});
+      if (!choice) return;
+      mode = choice.mode;
+    }
+    if (mode === 'program') {
+      const chosen = await vscode.window.showOpenDialog({canSelectMany:true,
+        filters:{'Входные тесты stdin':['in','txt','dat'],'Все файлы':['*']},
+        title:'Выберите готовые входные тесты программы для cin',openLabel:'Выбрать входные тесты'});
+      if (!chosen?.length) return;
+      if (chosen.length > 20 || chosen.some(file=>file.scheme !== 'file')) throw new Error('Выберите от 1 до 20 локальных входных файлов.');
+      const files = sortInputFiles(chosen.map(file=>file.fsPath));
+      const sizes = await vscode.window.showInputBox({title:'main · Размеры задач для графика',
+        prompt:`Укажите n для каждого файла через запятую в этом порядке: ${inputOrderLabel(files)}`,
+        placeHolder:'n — количество элементов или операций в тесте, не число повторов',
+        value:suggestSizes(files).join(', ')});
+      if (sizes === undefined) return;
+      config = buildProgramConfig(uri.fsPath, files, sizes, settings);
+    } else {
+      const previous = context.workspaceState.get(`lastExperiment.${language}`, language === 'javascript' ? context.workspaceState.get('lastExperiment', {}) : {});
+      const editor = vscode.window.activeTextEditor;
+      const selection = editor && editor.document.uri.toString() === uri.toString() ? editor.document.getText(editor.selection).trim() : '';
+      const names = await vscode.window.showInputBox({title:`1/3 · ${languageLabel} · Функции для сравнения`, prompt:language === 'javascript' ? 'Имена экспортов через запятую (1–4). Для default-экспорта: default.' : language === 'cpp' ? 'Имена функций через запятую (1–4). Для main выберите режим программы целиком.' : 'Имена функций модуля через запятую (1–4).', value:/^[\w$:]+$/.test(selection) ? selection : previous.names || '', placeHolder:language === 'javascript' ? 'uniqueSlow, uniqueFast' : 'unique_slow, unique_fast'});
+      if (names === undefined) return;
+      const sizes = await vscode.window.showInputBox({title:'2/3 · Размеры входных данных', prompt:'Возрастающие размеры через запятую, максимум 1 000 000.', value:previous.sizes || '100, 1000, 5000, 10000'});
+      if (sizes === undefined) return;
+      const input = await vscode.window.showQuickPick([
+        {label:'Случайный массив', description:'Воспроизводимые целые числа, seed = 42', kind:'random'},
+        {label:'Возрастающий массив', description:'0, 1, …, n−1', kind:'sorted'},
+        {label:'Убывающий массив', description:'n, n−1, …, 1', kind:'reversed'},
+        {label:'Свой генератор', description:language === 'javascript' ? 'generateInput(size, seed) → массив аргументов' : language === 'python' ? 'generate_input(size, seed) → список или кортеж аргументов' : 'generate_input(size, seed) → std::tuple аргументов', kind:'custom'}
+      ], {title:'3/3 · Входные данные', placeHolder:`Будет выполнен код ${languageLabel}${language === 'cpp' ? ' · компиляция C++17 с -O2' : ''}`});
+      if (!input) return;
+      config = buildConfig(uri.fsPath, names, sizes, input.kind, settings);
+      await context.workspaceState.update(`lastExperiment.${language}`, {names, sizes});
+    }
     const result = await vscode.window.withProgress({location:vscode.ProgressLocation.Notification, title:'Код под нагрузкой', cancellable:true}, async (progress, token) => {
       const controller = new AbortController();
       activeController = controller;
@@ -56,7 +82,7 @@ async function run(context) {
         return await runBenchmark(config, {nodePath:settings.get('nodePath', 'node'),
           pythonPath:settings.get('pythonPath', '') || (process.platform === 'win32' ? 'python' : 'python3'),
           cppCompilerPath:settings.get('cppCompilerPath', 'g++'), signal:controller.signal,
-          onStage:stage => progress.report({message:stage === 'compile' ? 'Компиляция C++17…' : 'Измерение функций…'}),
+          onStage:stage => progress.report({message:stage === 'compile' ? 'Компиляция C++17…' : config.mode === 'program' ? 'Запуск программы через main…' : 'Измерение функций…'}),
           onPoint:point => progress.report({increment:100 / total, message:`${point.name} · n = ${point.size}`})});
       } finally { cancellation.dispose(); activeController = undefined; }
     });

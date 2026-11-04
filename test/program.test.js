@@ -35,3 +35,21 @@ test('program mode cancels a running main and bounds compilation time', async ()
   assert.ok(started);
   await assert.rejects(runBenchmark({...config,timeoutMs:100},options),/Превышен лимит/);
 });
+
+test('program report labels process timing and escapes stdin filenames and stdout', () => {
+  const {renderReport}=require('../src/report');
+  const {toCsv}=require('../src/export');
+  const result={config,points:[{name:'main',size:100,medianMs:1,minMs:1,maxMs:2,p95Ms:2,inputFile:'<stdin>.in',inputBytes:10,stdoutPreview:'<script>bad()</script>'}],runtime:'C++',platform:'test',createdAt:'now'};
+  const html=renderReport(result);
+  assert.match(html,/Измеряется весь процесс/);assert.match(html,/Входной файл/);
+  assert.ok(!html.includes('<script>bad()'));
+  assert.match(html,/&lt;stdin&gt;/);
+  assert.match(toCsv(result),/inputFile,inputBytes/);
+});
+test('program input helpers keep file-size associations explicit', () => {
+  const {sortInputFiles,suggestSizes,inputOrderLabel}=require('../src/program-inputs');
+  const files=sortInputFiles(['input-100.in','input-10.in']);
+  assert.deepEqual(suggestSizes(files),[10,100]);
+  assert.match(inputOrderLabel(files),/1\) input-10.in; 2\) input-100.in/);
+  assert.deepEqual(suggestSizes(['one.in','two.in']),[1,2]);
+});
