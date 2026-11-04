@@ -1,8 +1,8 @@
 {
   "name": "code-under-load",
   "displayName": "Код под нагрузкой",
-  "description": "Измерение и сравнение времени выполнения JavaScript-функций на данных разного объёма.",
-  "version": "0.1.0",
+  "description": "Измерение и сравнение производительности функций JavaScript, Python и C++.",
+  "version": "0.2.0",
   "publisher": "pe4en1ka",
   "author": "Мамедов Тимур Назимович, М3108",
   "license": "MIT",
@@ -35,7 +35,7 @@
       "editor/context": [
         {
           "command": "codeUnderLoad.run",
-          "when": "resourceExtname =~ /\\.(js|cjs|mjs)$/",
+          "when": "resourceExtname =~ /\\.(js|cjs|mjs|py|cpp|cc|cxx)$/",
           "group": "navigation"
         }
       ]
@@ -69,6 +69,18 @@
           "minimum": 1,
           "maximum": 120,
           "description": "Общий лимит времени эксперимента в секундах."
+        },
+        "codeUnderLoad.pythonPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Путь к Python 3.9+. Пустое значение: python в Windows, python3 в Linux/macOS."
+        },
+        "codeUnderLoad.cppCompilerPath": {
+          "type": "string",
+          "default": "g++",
+          "scope": "machine",
+          "description": "Путь к GCC g++ или Clang clang++ с поддержкой C++17 (GNU CLI, не MSVC)."
         }
       }
     }

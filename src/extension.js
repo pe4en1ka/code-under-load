@@ -4,6 +4,7 @@ const { buildConfig } = require('./configuration');
 const { runBenchmark } = require('./runner');
 const { renderReport } = require('./report');
 const { toCsv } = require('./export');
+const { detectLanguage, LANGUAGE_LABELS } = require('./languages');
 let running = false;
 let activeController;
 
@@ -19,17 +20,19 @@ async function run(context) {
   running = true;
   try {
     let uri = vscode.window.activeTextEditor?.document.uri;
-    if (!uri || uri.scheme !== 'file' || !/\.(cjs|mjs|js)$/i.test(uri.fsPath)) {
-      const selected = await vscode.window.showOpenDialog({canSelectMany:false, filters:{JavaScript:['js','cjs','mjs']}, openLabel:'Выбрать модуль'});
+    if (!uri || uri.scheme !== 'file' || !/\.(cjs|mjs|js|py|cpp|cc|cxx)$/i.test(uri.fsPath)) {
+      const selected = await vscode.window.showOpenDialog({canSelectMany:false, filters:{'JavaScript, Python, C++':['js','cjs','mjs','py','cpp','cc','cxx']}, openLabel:'Выбрать модуль'});
       uri = selected?.[0];
     }
     if (!uri) return;
     const document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
     if (document?.isDirty && !await document.save()) throw new Error('Сначала сохраните модуль.');
-    const previous = context.workspaceState.get('lastExperiment', {});
+    const language = detectLanguage(uri.fsPath);
+    const languageLabel = LANGUAGE_LABELS[language];
+    const previous = context.workspaceState.get(`lastExperiment.${language}`, language === 'javascript' ? context.workspaceState.get('lastExperiment', {}) : {});
     const editor = vscode.window.activeTextEditor;
     const selection = editor && editor.document.uri.toString() === uri.toString() ? editor.document.getText(editor.selection).trim() : '';
-    const names = await vscode.window.showInputBox({title:'1/3 · Функции для сравнения', prompt:'Имена экспортов через запятую (1–4). Для default-экспорта: default.', value:/^[\w$]+$/.test(selection) ? selection : previous.names || '', placeHolder:'uniqueSlow, uniqueFast'});
+    const names = await vscode.window.showInputBox({title:`1/3 · ${languageLabel} · Функции для сравнения`, prompt:language === 'javascript' ? 'Имена экспортов через запятую (1–4). Для default-экспорта: default.' : language === 'cpp' ? 'Имена функций через запятую (1–4). Файл без main; поддерживаются пространства имён.' : 'Имена функций модуля через запятую (1–4).', value:/^[\w$:]+$/.test(selection) ? selection : previous.names || '', placeHolder:language === 'javascript' ? 'uniqueSlow, uniqueFast' : 'unique_slow, unique_fast'});
     if (names === undefined) return;
     const sizes = await vscode.window.showInputBox({title:'2/3 · Размеры входных данных', prompt:'Возрастающие размеры через запятую, максимум 1 000 000.', value:previous.sizes || '100, 1000, 5000, 10000'});
     if (sizes === undefined) return;
@@ -37,12 +40,12 @@ async function run(context) {
       {label:'Случайный массив', description:'Воспроизводимые целые числа, seed = 42', kind:'random'},
       {label:'Возрастающий массив', description:'0, 1, …, n−1', kind:'sorted'},
       {label:'Убывающий массив', description:'n, n−1, …, 1', kind:'reversed'},
-      {label:'Свой генератор', description:'Экспорт generateInput(size, seed) → массив аргументов', kind:'custom'}
-    ], {title:'3/3 · Входные данные', placeHolder:'Модуль и выбранные функции будут выполнены в Node.js'});
+      {label:'Свой генератор', description:language === 'javascript' ? 'generateInput(size, seed) → массив аргументов' : language === 'python' ? 'generate_input(size, seed) → список или кортеж аргументов' : 'generate_input(size, seed) → std::tuple аргументов', kind:'custom'}
+    ], {title:'3/3 · Входные данные', placeHolder:`Будет выполнен код ${languageLabel}${language === 'cpp' ? ' · компиляция C++17 с -O2' : ''}`});
     if (!input) return;
     const settings = vscode.workspace.getConfiguration('codeUnderLoad');
     const config = buildConfig(uri.fsPath, names, sizes, input.kind, settings);
-    await context.workspaceState.update('lastExperiment', {names, sizes});
+    await context.workspaceState.update(`lastExperiment.${language}`, {names, sizes});
     const result = await vscode.window.withProgress({location:vscode.ProgressLocation.Notification, title:'Код под нагрузкой', cancellable:true}, async (progress, token) => {
       const controller = new AbortController();
       activeController = controller;
@@ -50,7 +53,10 @@ async function run(context) {
       if (token.isCancellationRequested) controller.abort();
       const total = config.functions.length * config.sizes.length;
       try {
-        return await runBenchmark(config, {nodePath:settings.get('nodePath', 'node'), signal:controller.signal,
+        return await runBenchmark(config, {nodePath:settings.get('nodePath', 'node'),
+          pythonPath:settings.get('pythonPath', '') || (process.platform === 'win32' ? 'python' : 'python3'),
+          cppCompilerPath:settings.get('cppCompilerPath', 'g++'), signal:controller.signal,
+          onStage:stage => progress.report({message:stage === 'compile' ? 'Компиляция C++17…' : 'Измерение функций…'}),
           onPoint:point => progress.report({increment:100 / total, message:`${point.name} · n = ${point.size}`})});
       } finally { cancellation.dispose(); activeController = undefined; }
     });

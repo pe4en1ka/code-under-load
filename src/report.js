@@ -1,5 +1,6 @@
 'use strict';
 const { randomBytes } = require('node:crypto');
+const { LANGUAGE_LABELS } = require('./languages');
 const COLORS = ['#56c8ff', '#ffbe62', '#bd9cff', '#69dbaf'];
 const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const number = value => value === 0 ? '0' : value < 0.001 ? value.toExponential(2) : value.toFixed(3);
@@ -37,13 +38,13 @@ function renderReport(result, { cssUri = '', scriptUri = '', cspSource = '' } = 
   const rows = result.points.map(point => `<tr><td>${escape(point.name)}</td><td>${point.size}</td><td>${number(point.medianMs)}</td><td>${number(point.minMs)}</td><td>${number(point.p95Ms)}</td><td>${number(point.maxMs)}</td></tr>`).join('');
   return `<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${escape(cspSource)}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${escape(cssUri)}"><title>Код под нагрузкой</title></head><body>
-<header><div><span class="eyebrow">ЛАБОРАТОРИЯ ПРОИЗВОДИТЕЛЬНОСТИ</span><h1>Код под нагрузкой</h1><p>Как растёт время выполнения вместе с объёмом данных</p></div><div class="actions"><button data-export="json">Сохранить JSON</button><button data-export="csv">Сохранить CSV</button></div></header>
+<header><div><span class="eyebrow">ЛАБОРАТОРИЯ ПРОИЗВОДИТЕЛЬНОСТИ</span><h1>Код под нагрузкой</h1><p>${escape(LANGUAGE_LABELS[result.config.language || 'javascript'])} · Как растёт время выполнения вместе с объёмом данных</p></div><div class="actions"><button data-export="json">Сохранить JSON</button><button data-export="csv">Сохранить CSV</button></div></header>
 <section class="metrics"><article><span>Размеры входа</span><strong>${result.config.sizes.length}</strong><small>от ${result.config.sizes[0]} до ${result.config.sizes.at(-1)}</small></article><article><span>Измерений на точку</span><strong>${result.config.repetitions}</strong><small>+ ${result.config.warmup} прогревочных вызова</small></article><article><span>Меньшая медиана при максимальном n</span><strong>${escape(fastest.name)}</strong><small>${number(fastest.medianMs)} мс · n = ${fastest.size}</small></article></section>
 <section class="card"><div class="section-head"><h2>Время выполнения</h2><label><input type="checkbox" id="log-scale"> Логарифмическая шкала n</label></div>
 <div class="legend">${names.map((name,i) => `<span class="series series-${i}">● ${escape(name)}</span>`).join('')}</div>
 <div id="linear-chart">${chart(result)}</div><div id="log-chart" hidden>${chart(result,true)}</div><p class="hint">Линии соединяют измеренные точки. Наведите курсор на точку для подробностей.</p></section>
 <section class="card"><h2>Результаты измерений</h2><div class="table-scroll"><table><thead><tr><th>Функция</th><th>Размер n</th><th>Медиана, мс</th><th>Минимум, мс</th><th>P95, мс</th><th>Максимум, мс</th></tr></thead><tbody>${rows}</tbody></table></div></section>
-<footer><p>${escape(result.runtime)} · ${escape(result.platform)} · ${escape(result.config.input)} · ${escape(result.createdAt)}</p><p>Измеряется вызов функции, включая ожидание Promise. Генерация входа и загрузка модуля исключены. Результат зависит от среды, JIT и сборки мусора; график не доказывает асимптотическую сложность.</p></footer>
+<footer><p>${escape(result.runtime)} · ${escape(result.platform)} · ${escape(result.config.input)} · ${escape(result.createdAt)}</p><p>Измеряется вызов функции и ожидание её завершения. Генерация входа, загрузка модуля и компиляция исключены. Результат зависит от среды, JIT и сборки мусора; график не доказывает асимптотическую сложность.</p></footer>
 <script nonce="${nonce}" src="${escape(scriptUri)}"></script></body></html>`;
 }
 module.exports = { renderReport, chart, escape };
