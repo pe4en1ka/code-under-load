@@ -1,6 +1,6 @@
 'use strict';
 const vscode = require('vscode');
-const { buildConfig, buildProgramConfig } = require('./configuration');
+const { buildConfig, buildProgramConfig, buildGeneratedProgramConfig } = require('./configuration');
 const { sortInputFiles, suggestSizes, inputOrderLabel } = require('./program-inputs');
 const { runBenchmark } = require('./runner');
 const { renderReport } = require('./report');
@@ -35,13 +35,36 @@ async function run(context) {
     let mode = 'functions';
     if (language === 'cpp') {
       const choice = await vscode.window.showQuickPick([
-        {label:'Программа целиком через main', description:'Обычный .cpp + входные файлы для cin. Переделывать код не нужно.', mode:'program'},
+        {label:'Программа целиком через main', description:'Обычный .cpp + генератор или входные файлы для cin. Переделывать код не нужно.', mode:'program'},
         {label:'Отдельные функции', description:'Измерение функции с массивом или собственным генератором аргументов.', mode:'functions'}
       ], {title:'C++ · Что измеряем?', placeHolder:'Выберите способ запуска'});
       if (!choice) return;
       mode = choice.mode;
     }
     if (mode === 'program') {
+      const source = await vscode.window.showQuickPick([
+        {label:'Генератор входных данных', description:'Случайный, возрастающий или убывающий массив → stdin', source:'generated'},
+        {label:'Готовые входные файлы', description:'Ваши тесты для stdin', source:'files'}
+      ], {title:'main · Источник входных данных'});
+      if (!source) return;
+      if (source.source === 'generated') {
+        const sizes = await vscode.window.showInputBox({title:'main · Размеры входных данных',
+          prompt:'Возрастающие размеры n через запятую.',value:'100, 1000, 5000, 10000'});
+        if (sizes === undefined) return;
+        const input = await vscode.window.showQuickPick([
+          {label:'Случайный массив',description:'Воспроизводимые целые числа, seed = 42',kind:'random'},
+          {label:'Возрастающий массив',description:'0, 1, …, n−1',kind:'sorted'},
+          {label:'Убывающий массив',description:'n, n−1, …, 1',kind:'reversed'}
+        ], {title:'main · Генератор'});
+        if (!input) return;
+        const format = await vscode.window.showQuickPick([
+          {label:'n и массив',description:'Первая строка: n; вторая: n чисел через пробел',format:'size-array'},
+          {label:'Только массив',description:'n чисел через пробел, без размера',format:'array'},
+          {label:'Только n',description:'Одно число n и перевод строки',format:'size'}
+        ], {title:'main · Формат stdin',placeHolder:'Выберите формат, который ожидает ваша программа через cin'});
+        if (!format) return;
+        config = buildGeneratedProgramConfig(uri.fsPath, sizes, input.kind, format.format, settings);
+      } else {
       const chosen = await vscode.window.showOpenDialog({canSelectMany:true,
         filters:{'Входные тесты stdin':['in','txt','dat'],'Все файлы':['*']},
         title:'Выберите готовые входные тесты программы для cin',openLabel:'Выбрать входные тесты'});
@@ -54,6 +77,7 @@ async function run(context) {
         value:suggestSizes(files).join(', ')});
       if (sizes === undefined) return;
       config = buildProgramConfig(uri.fsPath, files, sizes, settings);
+      }
     } else {
       const previous = context.workspaceState.get(`lastExperiment.${language}`, language === 'javascript' ? context.workspaceState.get('lastExperiment', {}) : {});
       const editor = vscode.window.activeTextEditor;
