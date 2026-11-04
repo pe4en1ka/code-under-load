@@ -6,7 +6,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 const {createRequire}=require('node:module');
 
-test('VS Code main flow asks for input files and sizes instead of a function name', async()=>{
+for (const generated of [false,true]) test(`VS Code main flow: ${generated ? 'generated stdin' : 'input files'}`, async()=>{
   const filename=path.resolve(__dirname,'../src/extension.js');
   const localRequire=createRequire(filename);
   const uri=file=>({scheme:'file',fsPath:file,toString:()=>`file://${file}`});
@@ -20,8 +20,8 @@ test('VS Code main flow asks for input files and sizes instead of a function nam
     commands:{registerCommand:(_id,callback)=>{command=callback;return {dispose(){}};}},
     workspace:{isTrusted:true,textDocuments:[document],getConfiguration:()=>({get:(_key,fallback)=>fallback})},
     window:{activeTextEditor:{document,selection:{}},
-      showQuickPick:async items=>items.find(item=>item.mode==='program'),
-      showOpenDialog:async options=>{assert.equal(options.canSelectMany,true);return ['input-100.in','input-10.in'].map(file=>uri(path.resolve(__dirname,file)));},
+      showQuickPick:async items=>items.find(item=>item.mode==='program' || item.source===(generated ? 'generated' : 'files') || item.kind==='sorted' || item.format==='size-array'),
+      showOpenDialog:async options=>{assert.equal(generated,false);assert.equal(options.canSelectMany,true);return ['input-100.in','input-10.in'].map(file=>uri(path.resolve(__dirname,file)));},
       showInputBox:async options=>{inputs.push(options);return '10, 100';},
       withProgress:async(_options,callback)=>callback({report(){}},{onCancellationRequested:()=>({dispose(){}}),isCancellationRequested:false}),
       createWebviewPanel:()=>({webview,onDidDispose(){},dispose(){}}),
@@ -37,7 +37,8 @@ test('VS Code main flow asks for input files and sizes instead of a function nam
   module.exports.activate({subscriptions:[],extensionUri:uri(path.dirname(path.dirname(filename))),workspaceState:{get:()=>({}),update:async()=>{}}});
   await command();
   assert.deepEqual(errors,[]);assert.equal(inputs.length,1);
-  assert.match(inputs[0].title,/Размеры задач/);assert.equal(inputs[0].value,'10, 100');
+  assert.match(inputs[0].title,/Размеры/);if (!generated) assert.equal(inputs[0].value,'10, 100');
   assert.equal(received.mode,'program');assert.deepEqual(received.functions,['main']);
-  assert.match(received.inputFiles[0],/input-10.in$/);assert.match(html,/Программа целиком через main/);
+  if (generated) { assert.equal(received.input,'sorted');assert.equal(received.stdinFormat,'size-array'); }
+  else assert.match(received.inputFiles[0],/input-10.in$/);assert.match(html,/Программа целиком через main/);
 });
