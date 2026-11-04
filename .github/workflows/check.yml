@@ -4,7 +4,9 @@ permissions:
   contents: read
 jobs:
   test:
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: [20, 24]
@@ -14,5 +16,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: UCRT64
+          path-type: inherit
+          install: mingw-w64-ucrt-x86_64-gcc
       - run: npm run check
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
       - run: npm test
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}

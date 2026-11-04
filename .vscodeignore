@@ -9,3 +9,8 @@ pnpm-lock.yaml
 .gitignore
 
 pnpm-workspace.yaml
+
+*.bundle
+code-under-load-*/**
+**/__pycache__/**
+**/*.pyc

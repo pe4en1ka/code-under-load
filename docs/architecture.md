@@ -41,3 +41,20 @@ Policy и nonce для скрипта. Обработчик сообщений �
 - [VS Code: Webview](https://code.visualstudio.com/api/extension-guides/webview)
 - [Node.js: child_process](https://nodejs.org/api/child_process.html)
 - [Node.js: performance.now](https://nodejs.org/api/perf_hooks.html)
+
+## Поддержка Python и C++ в версии 0.2.0
+
+`languages.js` определяет язык по расширению, `validation.js` проверяет общий
+контракт. `runner.js` выбирает JavaScript, Python или C++. Настройки путей
+интерпретаторов и компилятора задаются отдельно.
+
+Python запускается через `workers/python_worker.py`: импорт через importlib,
+таймер perf_counter_ns, поддержка awaitable и генератора generate_input.
+C++ запускается через `cpp-runner.js`: создаётся временная обёртка на основе
+`workers/cpp_harness.cpp`, файл компилируется и выполняется. Используются
+std::chrono::steady_clock, std::apply для кортежей аргументов и барьер компилятора.
+
+`process.js` управляет внешним процессом и его деревом. `external-runner.js`
+разбирает протокол JSON с маркером, проверяет точки и рассчитывает статистику
+тем же модулем, что и JavaScript. Поэтому webview и экспорт едины для всех языков.
+Компиляция и генерация данных находятся вне измеряемого интервала.

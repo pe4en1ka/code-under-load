@@ -9,6 +9,8 @@ async function run() {
   const commands = await vscode.commands.getCommands(true);
   assert.ok(commands.includes('codeUnderLoad.run'), 'Команда должна быть зарегистрирована');
   assert.equal(vscode.workspace.getConfiguration('codeUnderLoad').get('repetitions'), 7);
+  assert.equal(vscode.workspace.getConfiguration('codeUnderLoad').get('pythonPath'), '');
+  assert.equal(vscode.workspace.getConfiguration('codeUnderLoad').get('cppCompilerPath'), 'g++');
   console.log('EXTENSION_HOST_CHECK_PASSED');
 }
 module.exports = { run };
