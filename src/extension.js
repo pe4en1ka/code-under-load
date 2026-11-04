@@ -32,7 +32,7 @@ async function run(context) {
     const previous = context.workspaceState.get(`lastExperiment.${language}`, language === 'javascript' ? context.workspaceState.get('lastExperiment', {}) : {});
     const editor = vscode.window.activeTextEditor;
     const selection = editor && editor.document.uri.toString() === uri.toString() ? editor.document.getText(editor.selection).trim() : '';
-    const names = await vscode.window.showInputBox({title:`1/3 · ${languageLabel} · Функции для сравнения`, prompt:language === 'javascript' ? 'Имена экспортов через запятую (1–4). Для default-экспорта: default.' : language === 'cpp' ? 'Имена функций через запятую (1–4). Файл без main; поддерживаются пространства имён.' : 'Имена функций модуля через запятую (1–4).', value:/^[\w$:]+$/.test(selection) ? selection : previous.names || '', placeHolder:language === 'javascript' ? 'uniqueSlow, uniqueFast' : 'unique_slow, unique_fast'});
+    const names = await vscode.window.showInputBox({title:`1/3 · ${languageLabel} · Функции для сравнения`, prompt:language === 'javascript' ? 'Имена экспортов через запятую (1–4). Для default-экспорта: default.' : language === 'cpp' ? 'Имена функций через запятую (1–4). Можно использовать файл с main; сам main не запускается.' : 'Имена функций модуля через запятую (1–4).', value:/^[\w$:]+$/.test(selection) ? selection : previous.names || '', placeHolder:language === 'javascript' ? 'uniqueSlow, uniqueFast' : 'unique_slow, unique_fast'});
     if (names === undefined) return;
     const sizes = await vscode.window.showInputBox({title:'2/3 · Размеры входных данных', prompt:'Возрастающие размеры через запятую, максимум 1 000 000.', value:previous.sizes || '100, 1000, 5000, 10000'});
     if (sizes === undefined) return;
