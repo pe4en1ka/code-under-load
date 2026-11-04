@@ -1,8 +1,8 @@
 {
   "name": "code-under-load",
   "displayName": "Код под нагрузкой",
-  "description": "Измерение и сравнение производительности функций JavaScript, Python и C++.",
-  "version": "0.2.1",
+  "description": "Исследование функций JavaScript, Python, C++ и запуск C++ программ через main с тестами stdin.",
+  "version": "0.3.0",
   "publisher": "pe4en1ka",
   "author": "Мамедов Тимур Назимович, М3108",
   "license": "MIT",
