@@ -11,11 +11,23 @@ function validateConfig(config) {
   for (const [key, min, max] of [['repetitions', 3, 50], ['warmup', 0, 10], ['timeoutMs', 100, 120000]]) {
     if (!Number.isInteger(config[key]) || config[key] < min || config[key] > max) throw new Error(`Некорректный параметр ${key}: ${min}–${max}.`);
   }
-  if (!['random', 'sorted', 'reversed', 'custom'].includes(config.input)) throw new Error('Неизвестный генератор данных.');
+  if (config.mode && !['functions','program'].includes(config.mode)) throw new Error('Неизвестный режим измерений.');
+  if (!['random', 'sorted', 'reversed', 'custom', ...(config.mode === 'program' ? ['files'] : [])].includes(config.input)) throw new Error('Неизвестный генератор данных.');
   const language = detectLanguage(config.modulePath);
   if (config.language && config.language !== language) throw new Error('Язык не соответствует расширению файла.');
   if (language === 'cpp' && config.functions.some(name => !/^[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*$/.test(name))) {
     throw new Error('Для C++ укажите имена функций, например unique_fast или algo::sort.');
+  }
+  if (config.mode === 'program') {
+    if (language !== 'cpp' || config.input !== 'files' || config.functions.length !== 1 || config.functions[0] !== 'main') {
+      throw new Error('Режим программы поддерживает C++ main и входные файлы.');
+    }
+    if (!Array.isArray(config.inputFiles) || config.inputFiles.length !== config.sizes.length ||
+        config.inputFiles.some(file => typeof file !== 'string' || !file.trim())) {
+      throw new Error('Укажите один входной файл для каждого размера задачи.');
+    }
+  } else if (language === 'cpp' && config.functions.includes('main')) {
+    throw new Error('Для main выберите режим «Программа целиком через main».');
   }
   return config;
 }
