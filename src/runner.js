@@ -47,6 +47,6 @@ function runBenchmark(config, options = {}) {
   const language = detectLanguage(config.modulePath);
   if (language === 'javascript') return runJavaScript(config, options);
   if (language === 'python') return require('./external-runner').runExternalBenchmark(config, options);
-  return Promise.reject(new Error('Поддержка C++ ещё не подключена.'));
+  return require('./cpp-runner').runCppBenchmark(config, options);
 }
 module.exports = { runBenchmark };
