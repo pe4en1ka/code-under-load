@@ -31,3 +31,16 @@ test('C++ cancellation stops a running infinite loop and timeout bounds compilat
   assert.equal(started,true);
   await assert.rejects(runBenchmark({...config,timeoutMs:100},options),/Превышен лимит/);
 });
+
+test('C++ accepts a file with main without running or rewriting its entry point', async () => {
+  const fs = require('node:fs/promises');
+  const filename = path.resolve(__dirname,'fixtures/cpp_with_main.cpp');
+  const before = await fs.readFile(filename);
+  const result = await runBenchmark({...config,modulePath:filename,functions:['sum_values']},options);
+  assert.equal(result.points.length,2);
+  assert.deepEqual(await fs.readFile(filename),before);
+});
+test('C++ accepts argc/argv main and custom zero-argument benchmarks', async () => {
+  const result = await runBenchmark({...config,modulePath:path.resolve(__dirname,'fixtures/cpp_with_argv_main.cpp'),functions:['no_args'],input:'custom'},options);
+  assert.equal(result.points.length,2);
+});

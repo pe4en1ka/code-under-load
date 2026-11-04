@@ -11,7 +11,14 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+// Rename the user's entry point only while preprocessing the included file.
+// The saved source is unchanged, and its main is never called by the harness.
+#pragma push_macro("main")
+#undef main
+#define main code_under_load_user_main
 #include "__TARGET_INCLUDE__"
+#undef main
+#pragma pop_macro("main")
 
 namespace code_under_load_detail {
 std::string json_string(const std::string& value) {
