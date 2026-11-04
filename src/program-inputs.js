@@ -10,4 +10,10 @@ function suggestSizes(files) {
 function inputOrderLabel(files) {
   return files.map((file,i)=>`${i+1}) ${path.basename(file)}`).join('; ');
 }
-module.exports = { sortInputFiles, suggestSizes, inputOrderLabel };
+function generateStdin(size, kind, format) {
+  const { makeArgs } = require('./benchmark');
+  if (format === 'size') return Buffer.from(`${size}\n`);
+  const [values] = makeArgs(size, kind, 42);
+  return Buffer.from(`${format === 'size-array' ? `${size}\n` : ''}${values.join(' ')}\n`);
+}
+module.exports = { generateStdin, sortInputFiles, suggestSizes, inputOrderLabel };

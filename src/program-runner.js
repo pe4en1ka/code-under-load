@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { runProcess } = require('./process');
+const { generateStdin } = require('./program-inputs');
 const { statistics } = require('./benchmark');
 const { validateConfig } = require('./validation');
 
@@ -22,12 +23,15 @@ async function runCppProgram(config, {cppCompilerPath = 'g++', signal, onStage =
     } catch (error) { throw new Error(`Компиляция C++: ${error.message}`); }
     onStage('run');
     for (let index = 0; index < config.sizes.length; index++) {
-      const filename = config.inputFiles[index];
-      const info = await fs.stat(filename);
-      if (!info.isFile() || info.size > 64 * 1024 * 1024) throw new Error('Входной файл должен быть обычным файлом размером не более 64 МиБ.');
-      // Read once per point, outside every timed run, and send identical bytes each time.
-      const input = await fs.readFile(filename);
-      if (input.length > 64 * 1024 * 1024) throw new Error('Входной файл превышает 64 МиБ.');
+      // Prepare once outside timed runs; every repeat receives identical bytes.
+      let input;
+      const filename = config.input === 'files' ? config.inputFiles[index] : undefined;
+      if (filename) {
+        const info = await fs.stat(filename);
+        if (!info.isFile() || info.size > 64 * 1024 * 1024) throw new Error('Входной файл должен быть обычным файлом размером не более 64 МиБ.');
+        input = await fs.readFile(filename);
+        if (input.length > 64 * 1024 * 1024) throw new Error('Входной файл превышает 64 МиБ.');
+      } else input = generateStdin(config.sizes[index], config.input, config.stdinFormat);
       const samples = [];
       let output;
       for (let round = -config.warmup; round < config.repetitions; round++) {
@@ -35,7 +39,7 @@ async function runCppProgram(config, {cppCompilerPath = 'g++', signal, onStage =
         if (round >= 0) samples.push(output.elapsedMs);
       }
       const point = {name:'main',size:config.sizes[index],...statistics(samples),
-        inputFile:path.basename(filename),inputBytes:input.length,stdoutPreview:output.stdout,stderrPreview:output.stderr};
+        ...(filename ? {inputFile:path.basename(filename)} : {inputGenerator:config.input,stdinFormat:config.stdinFormat}),inputBytes:input.length,stdoutPreview:output.stdout,stderrPreview:output.stderr};
       points.push(point);onPoint(point);
     }
     return {config:{...config,language:'cpp',mode:'program'},points,createdAt:new Date().toISOString(),

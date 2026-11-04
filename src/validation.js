@@ -19,11 +19,14 @@ function validateConfig(config) {
     throw new Error('Для C++ укажите имена функций, например unique_fast или algo::sort.');
   }
   if (config.mode === 'program') {
-    if (language !== 'cpp' || config.input !== 'files' || config.functions.length !== 1 || config.functions[0] !== 'main') {
-      throw new Error('Режим программы поддерживает C++ main и входные файлы.');
+    if (language !== 'cpp' || !['files','random','sorted','reversed'].includes(config.input) || config.functions.length !== 1 || config.functions[0] !== 'main') {
+      throw new Error('Режим программы поддерживает C++ main, встроенные генераторы и входные файлы.');
     }
-    if (!Array.isArray(config.inputFiles) || config.inputFiles.length !== config.sizes.length ||
-        config.inputFiles.some(file => typeof file !== 'string' || !file.trim())) {
+    if (config.input !== 'files' && !['size-array','array','size'].includes(config.stdinFormat)) {
+      throw new Error('Выберите формат stdin: n и массив, массив или n.');
+    }
+    if (config.input === 'files' && (!Array.isArray(config.inputFiles) || config.inputFiles.length !== config.sizes.length ||
+        config.inputFiles.some(file => typeof file !== 'string' || !file.trim()))) {
       throw new Error('Укажите один входной файл для каждого размера задачи.');
     }
   } else if (language === 'cpp' && config.functions.includes('main')) {
