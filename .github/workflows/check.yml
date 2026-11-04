@@ -25,7 +25,19 @@ jobs:
           msystem: UCRT64
           path-type: inherit
           install: mingw-w64-ucrt-x86_64-gcc
-      - run: npm run check
-        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
-      - run: npm test
-        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+      - name: Check syntax on Linux
+        if: runner.os != 'Windows'
+        run: npm run check
+        shell: bash
+      - name: Test on Linux
+        if: runner.os != 'Windows'
+        run: npm test
+        shell: bash
+      - name: Check syntax on Windows
+        if: runner.os == 'Windows'
+        run: npm run check
+        shell: msys2 {0}
+      - name: Test on Windows
+        if: runner.os == 'Windows'
+        run: npm test
+        shell: msys2 {0}
