@@ -3,8 +3,9 @@ const vscode = require('vscode');
 const { buildConfig, buildProgramConfig, buildGeneratedProgramConfig } = require('./configuration');
 const { sortInputFiles, suggestSizes, inputOrderLabel } = require('./program-inputs');
 const { runBenchmark } = require('./runner');
-const { renderReport } = require('./report');
+const { renderReport, renderSourceReport } = require('./report');
 const { toCsv } = require('./export');
+const { analyzeFile } = require('./complexity');
 const { detectLanguage, LANGUAGE_LABELS } = require('./languages');
 let running = false;
 let activeController;
@@ -110,12 +111,17 @@ async function run(context) {
           onPoint:point => progress.report({increment:100 / total, message:`${point.name} · n = ${point.size}`})});
       } finally { cancellation.dispose(); activeController = undefined; }
     });
+    const sourceCode = await require('node:fs/promises').readFile(uri.fsPath, 'utf8');
+    result.complexity = await analyzeFile(sourceCode, { language, functions: config.functions }, {
+      pythonPath: settings.get('pythonPath', '') || (process.platform === 'win32' ? 'python' : 'python3')
+    });
     const panel = vscode.window.createWebviewPanel('codeUnderLoad.results', 'Код под нагрузкой · Результаты', vscode.ViewColumn.Beside, {
       enableScripts:true, localResourceRoots:[vscode.Uri.joinPath(context.extensionUri, 'media')]
     });
     panel.webview.html = renderReport(result, {
       cssUri:panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'report.css')).toString(),
       scriptUri:panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'report.js')).toString(),
+      functionsUri:panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'functions.js')).toString(),
       cspSource:panel.webview.cspSource
     });
     const exportSubscription = panel.webview.onDidReceiveMessage(async message => {
@@ -139,7 +145,37 @@ async function run(context) {
   } finally { running = false; }
 }
 function activate(context) {
+  context.subscriptions.push(vscode.commands.registerCommand('codeUnderLoad.analyze', () => analyzeCurrentSource(context)));
   context.subscriptions.push(vscode.commands.registerCommand('codeUnderLoad.run', () => run(context)));
+}
+async function analyzeCurrentSource(context) {
+  try {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) throw new Error('Откройте исходный файл.');
+    const language = detectLanguage(editor.document.uri.fsPath);
+    const source = editor.document.getText();
+    const selected = editor.document.getText(editor.selection).trim();
+    let names;
+    if (/^[A-Za-z_$][\w$:]*$/.test(selected)) names = [selected];
+    else if (language === 'cpp' && /\bmain\s*\(/.test(source)) names = ['main'];
+    else if (language === 'python') names = [...source.matchAll(/^\s*def\s+([A-Za-z_]\w*)\s*\(/gm)].map(m => m[1]);
+    else names = [...require('./complexity').parseCFamily(source).keys()];
+    if (!names.length) throw new Error('Не найдены определения функций. Выделите имя нужной функции.');
+    const settings = vscode.workspace.getConfiguration('codeUnderLoad');
+    const analysis = await analyzeFile(source, { language, functions: names }, {
+      pythonPath: settings.get('pythonPath', '') || (process.platform === 'win32' ? 'python' : 'python3')
+    });
+    const panel = vscode.window.createWebviewPanel('codeUnderLoad.analysis', 'Код под нагрузкой · Сложность', vscode.ViewColumn.Beside, {
+      enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
+    });
+    panel.webview.html = renderSourceReport(analysis, {
+      cssUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'report.css')).toString(),
+      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'report.js')).toString(),
+      functionsUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'functions.js')).toString(),
+      cspSource: panel.webview.cspSource
+    });
+    context.subscriptions.push(panel);
+  } catch (error) { vscode.window.showErrorMessage(`Анализ сложности: ${error.message}`); }
 }
 function deactivate() { activeController?.abort(); }
 module.exports = { activate, deactivate };
