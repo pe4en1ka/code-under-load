@@ -69,6 +69,26 @@ test('function plots use raw f(n), including constant, logs, exponentials and fa
   assert.match(math.plot(10,[]),/Выберите/);
   for(const n of [0,1,101,NaN,2.5]) assert.throws(()=>math.plot(n));
 });
+test('f(n) axis remains fixed across functions, empty selection and n ranges', () => {
+  assert.deepEqual(math.fixedScale, { min: 0, max: 1000, step: 200 });
+  const grid = html => html.match(/<line class="grid"[^>]*\/><text[^>]*>[^<]*<\/text>/g);
+  for (const logY of [false, true]) {
+    const reference = grid(math.plot(10, ['linear'], logY));
+    for (const maxN of [2, 10, 100]) for (const ids of [[], ['constant'], ['factorial'], ['nPowerN'], math.models.map(m => m.id)]) {
+      const html = math.plot(maxN, ids, logY);
+      assert.deepEqual(grid(html), reference);
+      for (const match of html.matchAll(/<polyline[^>]* points="([^"]*)"/g)) {
+        for (const point of match[1].split(' ').filter(Boolean)) {
+          const [x, y] = point.split(',').map(Number);
+          assert.ok(x >= 85 - 1e-6 && x <= 930 + 1e-6);
+          assert.ok(y >= 30 - 1e-6 && y <= 325 + 1e-6);
+        }
+      }
+    }
+  }
+  assert.match(math.plot(10, ['cube']), /10, f\(n\) = 1000/);
+  assert.ok(math.plot(10, ['factorial']).includes('clip-path="url(#function-plot-clip)"'));
+});
 test('reports retain timing chart, show source analysis and contain no fitting UI', () => {
   const name = '<img src=x>';
   const analysis = { [name]: { status:'estimated',time:'O(n)',memory:'O(1)',reason:'Цикл',evidence:[{line:1,text:'<script>'}],assumptions:[] } };
