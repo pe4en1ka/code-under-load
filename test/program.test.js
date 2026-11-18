@@ -15,6 +15,11 @@ test('program mode executes real main, supplies stdin, and collects every sample
   assert.equal(result.measurement,'process');assert.equal(progress.length,2);
   assert.equal(result.points[0].stdoutPreview.trim(),'45');assert.equal(result.points[1].stdoutPreview.trim(),'4950');
   for(const p of result.points) {assert.equal(p.samplesMs.length,3);assert.ok(p.medianMs>0);assert.ok(p.inputBytes>0);}
+  for(let i=0;i<result.points.length;i++) {
+    const input=await require('node:fs/promises').readFile(config.inputFiles[i],'utf8');
+    assert.equal(result.points[i].stdinPreview,input);assert.equal(result.points[i].stdinTruncated,false);
+    assert.equal(progress[i].stdinPreview,input);
+  }
 });
 test('program configuration maps files to sizes and rejects mismatches and main in function mode', () => {
   const settings={get:(_key,fallback)=>fallback};
@@ -39,12 +44,29 @@ test('program mode cancels a running main and bounds compilation time', async ()
 test('program report labels process timing and escapes stdin filenames and stdout', () => {
   const {renderReport}=require('../src/report');
   const {toCsv}=require('../src/export');
-  const result={config,points:[{name:'main',size:100,medianMs:1,minMs:1,maxMs:2,p95Ms:2,inputFile:'<stdin>.in',inputBytes:10,stdoutPreview:'<script>bad()</script>'}],runtime:'C++',platform:'test',createdAt:'now'};
+  const result={config,points:[{name:'main',size:100,medianMs:1,minMs:1,maxMs:2,p95Ms:2,inputFile:'<stdin>.in',inputBytes:10000,stdinPreview:'<script>input()</script>\n1 & 2',stdinTruncated:true,stdoutPreview:'<script>bad()</script>',stderrPreview:'<img src=x>'}],runtime:'C++',platform:'test',createdAt:'now'};
   const html=renderReport(result);
   assert.match(html,/Измеряется весь процесс/);assert.match(html,/Входные данные/);
   assert.ok(!html.includes('<script>bad()'));
   assert.match(html,/&lt;stdin&gt;/);
+  assert.match(html,/<h3>stdin<\/h3>/);assert.match(html,/&lt;script&gt;input\(\)/);
+  assert.ok(!html.includes('<script>input()'));assert.ok(!html.includes('<img src=x>'));
+  assert.match(html,/10000 байт/);assert.match(html,/остальное скрыто/);
+  assert.ok(html.indexOf('<h3>stdin</h3>')<html.indexOf('<h3>stdout</h3>'));
   assert.match(toCsv(result),/inputFile,inputBytes/);
+});
+test('stdin preview handles empty, large and UTF-8 input without changing the buffer', () => {
+  const {previewStdin}=require('../src/program-inputs');
+  assert.deepEqual(previewStdin(Buffer.alloc(0)),{stdinPreview:'',stdinTruncated:false});
+  assert.deepEqual(previewStdin(Buffer.from('a'.repeat(8000))),{stdinPreview:'a'.repeat(8000),stdinTruncated:false});
+  const text='я'.repeat(7999)+'😀suffix';const input=Buffer.from(text), before=Buffer.from(input);
+  const result=previewStdin(input);
+  assert.equal(result.stdinPreview,'я'.repeat(7999)+'😀');assert.equal(result.stdinTruncated,true);
+  assert.ok(!result.stdinPreview.includes('\uFFFD'));assert.deepEqual(input,before);
+  const {renderReport}=require('../src/report');
+  const old={config,points:[{name:'main',size:100,medianMs:1,minMs:1,maxMs:1,p95Ms:1,stdoutPreview:'ok'}]};
+  assert.match(renderReport(old),/вход не сохранён/);
+  old.points[0].stdinPreview='';assert.match(renderReport(old),/<h3>stdin<\/h3>[\s\S]*?<pre>\(пусто\)<\/pre>/);
 });
 test('program input helpers keep file-size associations explicit', () => {
   const {sortInputFiles,suggestSizes,inputOrderLabel}=require('../src/program-inputs');
@@ -73,6 +95,8 @@ test('real main receives generated inputs with stable output across sizes and re
       assert.equal(point.stdoutPreview.trim(),String(makeArgs(point.size,kind,42)[0].reduce((a,b)=>a+b,0)));
       assert.equal(point.inputGenerator,kind);assert.equal(point.samplesMs.length,3);
       assert.equal(point.inputFile,undefined);
+      assert.equal(point.stdinPreview,require('../src/program-inputs').generateStdin(point.size,kind,'size-array').toString('utf8'));
+      assert.equal(point.stdinTruncated,false);
     }
     const {renderReport}=require('../src/report');
     const {toCsv}=require('../src/export');
@@ -80,3 +104,4 @@ test('real main receives generated inputs with stable output across sizes and re
     assert.match(toCsv(result),/inputGenerator,stdinFormat/);
   }
 });
+

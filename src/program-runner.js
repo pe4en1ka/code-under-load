@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { runProcess } = require('./process');
-const { generateStdin } = require('./program-inputs');
+const { generateStdin, previewStdin } = require('./program-inputs');
 const { statistics } = require('./benchmark');
 const { validateConfig } = require('./validation');
 
@@ -32,6 +32,7 @@ async function runCppProgram(config, {cppCompilerPath = 'g++', signal, onStage =
         input = await fs.readFile(filename);
         if (input.length > 64 * 1024 * 1024) throw new Error('Входной файл превышает 64 МиБ.');
       } else input = generateStdin(config.sizes[index], config.input, config.stdinFormat);
+      const stdin = previewStdin(input);
       const samples = [];
       let output;
       for (let round = -config.warmup; round < config.repetitions; round++) {
@@ -39,7 +40,7 @@ async function runCppProgram(config, {cppCompilerPath = 'g++', signal, onStage =
         if (round >= 0) samples.push(output.elapsedMs);
       }
       const point = {name:'main',size:config.sizes[index],...statistics(samples),
-        ...(filename ? {inputFile:path.basename(filename)} : {inputGenerator:config.input,stdinFormat:config.stdinFormat}),inputBytes:input.length,stdoutPreview:output.stdout,stderrPreview:output.stderr};
+        ...(filename ? {inputFile:path.basename(filename)} : {inputGenerator:config.input,stdinFormat:config.stdinFormat}),inputBytes:input.length,...stdin,stdoutPreview:output.stdout,stderrPreview:output.stderr};
       points.push(point);onPoint(point);
     }
     return {config:{...config,language:'cpp',mode:'program'},points,createdAt:new Date().toISOString(),

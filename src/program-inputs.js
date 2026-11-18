@@ -1,5 +1,13 @@
 'use strict';
 const path = require('node:path');
+const { StringDecoder } = require('node:string_decoder');
+function previewStdin(input) {
+  // Decode a bounded prefix without breaking a UTF-8 sequence or a surrogate pair.
+  const decoder = new StringDecoder('utf8');
+  const prefix = decoder.write(input.subarray(0, 8000 * 4));
+  const stdinPreview = [...prefix].slice(0, 8000).join('');
+  return { stdinPreview, stdinTruncated: input.length > Buffer.byteLength(stdinPreview, 'utf8') };
+}
 function sortInputFiles(files) {
   return [...files].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
 }
@@ -16,4 +24,4 @@ function generateStdin(size, kind, format) {
   const [values] = makeArgs(size, kind, 42);
   return Buffer.from(`${format === 'size-array' ? `${size}\n` : ''}${values.join(' ')}\n`);
 }
-module.exports = { generateStdin, sortInputFiles, suggestSizes, inputOrderLabel };
+module.exports = { generateStdin, previewStdin, sortInputFiles, suggestSizes, inputOrderLabel };
