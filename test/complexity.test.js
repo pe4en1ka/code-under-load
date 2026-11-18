@@ -69,25 +69,36 @@ test('function plots use raw f(n), including constant, logs, exponentials and fa
   assert.match(math.plot(10,[]),/Выберите/);
   for(const n of [0,1,101,NaN,2.5]) assert.throws(()=>math.plot(n));
 });
-test('f(n) axis remains fixed across functions, empty selection and n ranges', () => {
-  assert.deepEqual(math.fixedScale, { min: 0, max: 1000, step: 200 });
+test('both axes share scale, change together with N, and ignore selected functions', () => {
+  assert.deepEqual(math.axisScale(10), {min:0,max:10,step:2});
+  assert.deepEqual(math.axisScale(100), {min:0,max:100,step:20});
   const grid = html => html.match(/<line class="grid"[^>]*\/><text[^>]*>[^<]*<\/text>/g);
-  for (const logY of [false, true]) {
-    const reference = grid(math.plot(10, ['linear'], logY));
-    for (const maxN of [2, 10, 100]) for (const ids of [[], ['constant'], ['factorial'], ['nPowerN'], math.models.map(m => m.id)]) {
-      const html = math.plot(maxN, ids, logY);
-      assert.deepEqual(grid(html), reference);
-      for (const match of html.matchAll(/<polyline[^>]* points="([^"]*)"/g)) {
-        for (const point of match[1].split(' ').filter(Boolean)) {
-          const [x, y] = point.split(',').map(Number);
-          assert.ok(x >= 85 - 1e-6 && x <= 930 + 1e-6);
-          assert.ok(y >= 30 - 1e-6 && y <= 325 + 1e-6);
-        }
+  for (const logY of [false, true]) for (const maxN of [2,10,11,37,100]) {
+    const reference = grid(math.plot(maxN,['linear'],logY));
+    for (const ids of [[],['constant'],['factorial'],['nPowerN'],math.models.map(m=>m.id)]) {
+      const html=math.plot(maxN,ids,logY);
+      assert.deepEqual(grid(html),reference);
+      if (!logY) {
+        const labels = axis => [...html.matchAll(new RegExp('<text data-axis="'+axis+'"[^>]*>([^<]*)<\\/text>','g'))].map(m=>m[1]);
+        assert.deepEqual(labels('x'),labels('y'));
+      }
+      for (const match of html.matchAll(/<polyline[^>]* points="([^"]*)"/g)) for (const point of match[1].split(' ').filter(Boolean)) {
+        const [x,y]=point.split(',').map(Number);
+        assert.ok(x>=85-1e-6&&x<=685+1e-6);assert.ok(y>=35-1e-6&&y<=635+1e-6);
       }
     }
   }
-  assert.match(math.plot(10, ['cube']), /10, f\(n\) = 1000/);
-  assert.ok(math.plot(10, ['factorial']).includes('clip-path="url(#function-plot-clip)"'));
+  assert.notDeepEqual(grid(math.plot(10,['linear'])),grid(math.plot(100,['linear'])));
+  assert.ok(math.plot(10,['factorial']).includes('clip-path="url(#function-plot-clip)"'));
+});
+test('f(n)=n has a 45-degree slope in linear mode for every supported N', () => {
+  for(const maxN of [2,10,11,37,100]) {
+    const html=math.plot(maxN,['linear']);
+    const points=html.match(/<polyline[^>]* points="([^"]*)"/)[1].split(' ').map(point=>point.split(',').map(Number));
+    for(const [x,y] of points) assert.ok(Math.abs(x+y-720)<1e-8);
+    const [x0,y0]=points[0], [x1,y1]=points.at(-1);
+    assert.ok(Math.abs((y0-y1)/(x1-x0)-1)<1e-10);
+  }
 });
 test('reports retain timing chart, show source analysis and contain no fitting UI', () => {
   const name = '<img src=x>';

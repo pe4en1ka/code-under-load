@@ -3,3 +3,5 @@
 details{margin-top:16px}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;background:var(--vscode-textCodeBlock-background,#10151f);border-radius:6px}h3{font-size:13px}
 
 .function-controls{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:18px}.function-controls input[type=number]{width:80px;margin-left:8px}.function-legend{display:flex;flex-wrap:wrap;gap:12px 20px;margin-bottom:16px}.function-legend label{display:flex;align-items:center;gap:6px;cursor:pointer}.function-legend svg{display:inline-block;width:20px;height:4px;min-width:0}#function-chart{overflow-x:auto}#function-error{color:var(--vscode-errorForeground,#e66)}article+article{margin-top:16px}
+
+#function-chart>svg{max-width:760px;margin:0 auto}
